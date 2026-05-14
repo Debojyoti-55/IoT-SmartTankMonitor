@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Water Level Monitor</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #e0e7ff; margin: 0; padding: 20px; }
+        .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; }
+        .card { background: white; padding: 25px; width: 250px; border-radius: 15px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-top: 5px solid #3b82f6; }
+        h2 { color: #0e2871; font-size: 1.2rem; margin-bottom: 10px; }
+        .value { font-size: 2.5em; font-weight: 800; color: #002d80; }
+        .unit { font-size: 1.2em; color: #64748b; }
+    </style>
+</head>
+<body>
+    <h1>Real-Time Water Monitor</h1>
+    <div class="container">
+        <div class="card">
+            <h2>Device Status</h2>
+            <div id="id" class="value">--</div>
+        </div>
+        <div class="card">
+            <h2>Water Level</h2>
+            <div><span id="w_lvl" class="value">--</span><span class="unit">%</span></div>
+        </div>
+    </div>
+
+    <script>
+        // Connect to your local or deployed server
+        const socket = io(); 
+
+        socket.on('updateDashboard', (data) => {
+            console.log("New Data:", data);
+            // Match the keys from your ESP32 JSON
+            if (data.id !== undefined) document.getElementById('id').innerText = data.id;
+            if (data.w_lvl !== undefined) document.getElementById('w_lvl').innerText = data.w_lvl;
+        });
+    </script>
+</body>
+</html>
