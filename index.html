@@ -8,8 +8,19 @@
         .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; }
         .card { background: white; padding: 25px; width: 250px; border-radius: 15px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-top: 5px solid #3b82f6; }
         h2 { color: #0e2871; font-size: 1.2rem; margin-bottom: 10px; }
-        .value { font-size: 2.5em; font-weight: 800; color: #002d80; transition: color 0.5s ease; } /* Added transition */
+        .value { font-size: 2.2em; font-weight: 800; color: #002d80; transition: all 0.5s ease; }
         .unit { font-size: 1.2em; color: #64748b; }
+        
+        .status-badge { margin-top: 10px; display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; transition: all 0.3s; }
+        .booked { background: #fee2e2; color: #991b1b; }
+        .available { background: #d1fae5; color: #065f46; }
+        .processing { background: #fef3c7; color: #92400e; border: 1px dashed #d97706; animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -19,32 +30,73 @@
             <h2>Device Status</h2>
             <div id="id" class="value">--</div>
         </div>
+
         <div class="card">
             <h2>Water Level</h2>
             <div><span id="w_lvl" class="value">--</span><span id="unit" class="unit">%</span></div>
+        </div>
+
+        <div class="card">
+            <h2>Booking</h2>
+            <div id="booking_text" class="value">--</div>
+            <div id="booking_badge" class="status-badge">Available</div>
         </div>
     </div>
 
     <script>
         const socket = io(); 
+        let isBookingInProgress = false; // Prevent overlapping animations
 
-        // Function to calculate color based on percentage
+        // Helper function for delays
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+
+        async function startBookingAnimation() {
+            if (isBookingInProgress) return;
+            isBookingInProgress = true;
+
+            const text = document.getElementById('booking_text');
+            const badge = document.getElementById('booking_badge');
+
+            const stages = [
+                "INITIATING...",
+                "FINDING TANKER",
+                "BOOKING...",
+                "BOOKED!"
+            ];
+
+            const descriptions = [
+                "Process Initiated",
+                "Searching Fleet",
+                "Finalizing Order",
+                "On the Way"
+            ];
+
+            for (let i = 0; i < stages.length; i++) {
+                text.innerText = stages[i];
+                text.style.color = "#d97706"; // Amber color during process
+                badge.innerText = descriptions[i];
+                badge.className = "status-badge processing";
+                
+                await delay(2500);
+            }
+
+            text.innerText = "BOOKED";
+            text.style.color = "#dc2626"; // Final Red
+            badge.className = "status-badge booked";
+            isBookingInProgress = false;
+        }
+
         function getDynamicColor(pct) {
-            pct = Math.max(10, Math.min(100, pct)); // Clamp between 10 and 100
+            pct = Math.max(10, Math.min(100, pct));
             let r, g, b = 0;
-
             if (pct >= 50) {
-                // 50-100: Yellow to Green
                 let ratio = (pct - 50) / 50;
                 r = Math.floor(255 * (1 - ratio));
                 g = 255;
             } else if (pct >= 25) {
-                // 25-50: Orange to Yellow
-                let ratio = (pct - 25) / 25;
                 r = 255;
-                g = Math.floor(165 + (90 * ratio));
+                g = Math.floor(165 + (90 * ((pct-25)/25)));
             } else {
-                // 10-25: Red to Orange
                 let ratio = (pct - 10) / 15;
                 r = 255;
                 g = Math.floor(165 * ratio);
@@ -53,22 +105,29 @@
         }
 
         socket.on('updateDashboard', (data) => {
-            console.log("New Data:", data);
-            
-            if (data.id !== undefined) {
-                document.getElementById('id').innerText = data.id;
-            }
+            if (data.id !== undefined) document.getElementById('id').innerText = data.id;
 
             if (data.w_lvl !== undefined) {
                 const levelElement = document.getElementById('w_lvl');
-                const levelValue = parseFloat(data.w_lvl);
+                levelElement.innerText = data.w_lvl;
+                levelElement.style.color = getDynamicColor(parseFloat(data.w_lvl));
+            }
+
+            if (data.booking !== undefined) {
+                const bookingStatus = parseInt(data.booking);
                 
-                // Update text
-                levelElement.innerText = levelValue;
-                
-                // Update color based on value
-                const dynamicColor = getDynamicColor(levelValue);
-                levelElement.style.color = dynamicColor;
+                if (bookingStatus === 1) {
+                    startBookingAnimation();
+                } else {
+                    // Reset to available immediately if booking is 0
+                    const text = document.getElementById('booking_text');
+                    const badge = document.getElementById('booking_badge');
+                    text.innerText = "OPEN";
+                    text.style.color = "#059669";
+                    badge.innerText = "Tanker Available";
+                    badge.className = "status-badge available";
+                    isBookingInProgress = false; 
+                }
             }
         });
     </script>
