@@ -8,7 +8,7 @@
         .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; }
         .card { background: white; padding: 25px; width: 250px; border-radius: 15px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-top: 5px solid #3b82f6; }
         h2 { color: #0e2871; font-size: 1.2rem; margin-bottom: 10px; }
-        .value { font-size: 2.5em; font-weight: 800; color: #002d80; }
+        .value { font-size: 2.5em; font-weight: 800; color: #002d80; transition: color 0.5s ease; } /* Added transition */
         .unit { font-size: 1.2em; color: #64748b; }
     </style>
 </head>
@@ -21,19 +21,55 @@
         </div>
         <div class="card">
             <h2>Water Level</h2>
-            <div><span id="w_lvl" class="value">--</span><span class="unit">%</span></div>
+            <div><span id="w_lvl" class="value">--</span><span id="unit" class="unit">%</span></div>
         </div>
     </div>
 
     <script>
-        // Connect to your local or deployed server
         const socket = io(); 
+
+        // Function to calculate color based on percentage
+        function getDynamicColor(pct) {
+            pct = Math.max(10, Math.min(100, pct)); // Clamp between 10 and 100
+            let r, g, b = 0;
+
+            if (pct >= 50) {
+                // 50-100: Yellow to Green
+                let ratio = (pct - 50) / 50;
+                r = Math.floor(255 * (1 - ratio));
+                g = 255;
+            } else if (pct >= 25) {
+                // 25-50: Orange to Yellow
+                let ratio = (pct - 25) / 25;
+                r = 255;
+                g = Math.floor(165 + (90 * ratio));
+            } else {
+                // 10-25: Red to Orange
+                let ratio = (pct - 10) / 15;
+                r = 255;
+                g = Math.floor(165 * ratio);
+            }
+            return `rgb(${r}, ${g}, ${b})`;
+        }
 
         socket.on('updateDashboard', (data) => {
             console.log("New Data:", data);
-            // Match the keys from your ESP32 JSON
-            if (data.id !== undefined) document.getElementById('id').innerText = data.id;
-            if (data.w_lvl !== undefined) document.getElementById('w_lvl').innerText = data.w_lvl;
+            
+            if (data.id !== undefined) {
+                document.getElementById('id').innerText = data.id;
+            }
+
+            if (data.w_lvl !== undefined) {
+                const levelElement = document.getElementById('w_lvl');
+                const levelValue = parseFloat(data.w_lvl);
+                
+                // Update text
+                levelElement.innerText = levelValue;
+                
+                // Update color based on value
+                const dynamicColor = getDynamicColor(levelValue);
+                levelElement.style.color = dynamicColor;
+            }
         });
     </script>
 </body>
