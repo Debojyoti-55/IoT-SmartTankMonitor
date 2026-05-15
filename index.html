@@ -1,144 +1,225 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Poseidon Water Level Monitor</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poseidon IoT | Smart Monitor</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #e0e7ff; margin: 0; padding: 20px; }
-        .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; }
-        .card { background: white; padding: 25px; width: 250px; border-radius: 15px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-top: 5px solid #3b82f6; }
-        h2 { color: #0e2871; font-size: 1.2rem; margin-bottom: 10px; }
-        .value { font-size: 2.2em; font-weight: 800; color: #002d80; transition: all 0.5s ease; }
-        .unit { font-size: 1.2em; color: #64748b; }
-        
-        .status-badge { margin-top: 10px; display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; transition: all 0.3s; }
-        .booked { background: #fee2e2; color: #991b1b; }
-        .available { background: #d1fae5; color: #065f46; }
-        .processing { background: #fef3c7; color: #92400e; border: 1px dashed #d97706; animation: pulse 1s infinite; }
+        :root {
+            --primary: #3b82f6;
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text: #f1f5f9;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-amber: #f59e0b;
+        }
 
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.6; }
-            100% { opacity: 1; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            margin-bottom: 30px;
+            background: linear-gradient(to right, #60a5fa, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5rem;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 30px;
+            text-align: center;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+        }
+
+        h2 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #94a3b8;
+            margin-top: 0;
+        }
+
+        .value {
+            font-size: 3rem;
+            font-weight: 800;
+            margin: 10px 0;
+            transition: color 0.5s ease;
+        }
+
+        /* Water Tank Visual */
+        .tank-container {
+            width: 80px;
+            height: 120px;
+            border: 3px solid #475569;
+            border-radius: 12px;
+            margin: 0 auto 15px;
+            position: relative;
+            overflow: hidden;
+            background: #1e293b;
+        }
+
+        .water {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+            transition: height 1s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 16px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-top: 10px;
+        }
+
+        .available { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+        .booked { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .processing { 
+            background: rgba(245, 158, 11, 0.2); color: var(--accent-amber);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse { 50% { opacity: 0.5; } }
+
+        .footer-info {
+            margin-top: auto;
+            padding: 20px;
+            color: #64748b;
+            font-size: 0.875rem;
         }
     </style>
 </head>
 <body>
-    <h1>Real-Time Water Monitor</h1>
-    <div class="container">
+
+    <h1>POSEIDON <span style="font-weight:300">IoT</span></h1>
+
+    <div class="dashboard">
+        <!-- Device Info -->
         <div class="card">
-            <h2>Device Status</h2>
-            <div id="id" class="value">--</div>
+            <h2>Device Identity</h2>
+            <div id="id" class="value" style="font-size: 1.5rem; margin-top: 45px;">--</div>
+            <div id="last_seen" style="font-size: 0.75rem; color: #64748b; margin-top: 10px;">Waiting for connection...</div>
         </div>
 
+        <!-- Level Card with Visual Tank -->
         <div class="card">
             <h2>Water Level</h2>
-            <div><span id="w_lvl" class="value">--</span><span id="unit" class="unit">%</span></div>
+            <div class="tank-container">
+                <div id="water_fill" class="water" style="height: 0%"></div>
+            </div>
+            <div><span id="w_lvl" class="value">--</span><span style="font-size: 1.5rem; color: #64748b;">%</span></div>
         </div>
 
+        <!-- Booking Card -->
         <div class="card">
-            <h2>Booking</h2>
-            <div id="booking_text" class="value">OPEN</div>
-            <div id="booking_badge" class="status-badge available">Tanker Available</div>
+            <h2>Supply Status</h2>
+            <div id="booking_text" class="value">READY</div>
+            <div id="booking_badge" class="badge available">Available</div>
         </div>
     </div>
 
-    <script>
-        const socket = io(); 
-        
-        // GLOBAL STATE TRACKERS
-        let currentBookingState = 0; 
-        let animationActive = false;
+    <div class="footer-info">
+        Server V1.2.3 • Real-time encrypted stream
+    </div>
 
-        const delay = ms => new Promise(res => setTimeout(res, ms));
+    <script>
+        const socket = io();
+        let lastState = null;
+        let isAnimating = false;
+
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
 
         async function runBookingSequence() {
-            if (animationActive) return;
-            animationActive = true;
+            if (isAnimating) return;
+            isAnimating = true;
 
             const text = document.getElementById('booking_text');
             const badge = document.getElementById('booking_badge');
 
-            const stages = ["INITIATING...", "FINDING TANKER", "BOOKING...", "BOOKED!"];
-            const desc = ["Process Initiated", "Searching Fleet", "Finalizing Order", "On the Way"];
-
-            for (let i = 0; i <=1; i++) {
-                // If the state was reset to 0 by a new packet during animation, abort immediately
-                if (currentBookingState === 0) {
-                    resetToOpen();
-                    animationActive = false;
-                    return;
-                }
-
-                text.innerText = stages[i];
-                text.style.color = "#d97706"; 
-                badge.innerText = desc[i];
-                badge.className = "status-badge processing";
-                await delay(2000);
+            const stages = ["INITIATING", "SEARCHING", "CONFIRMING", "EN ROUTE"];
+            for (const s of stages) {
+                if (lastState === 0) break;
+                text.innerText = s;
+                text.style.color = "var(--accent-amber)";
+                badge.innerText = "Processing...";
+                badge.className = "badge processing";
+                await sleep(1500);
             }
 
-            // Final check after loops finish
-            if (currentBookingState === 1) {
+            if (lastState === 1) {
                 text.innerText = "BOOKED";
-                text.style.color = "#dc2626";
-                badge.innerText = "On the Way";
-                badge.className = "status-badge booked";
+                text.style.color = "var(--accent-red)";
+                badge.innerText = "Tanker Occupied";
+                badge.className = "badge booked";
             }
-            animationActive = false;
-        }
-
-        function resetToOpen() {
-            const text = document.getElementById('booking_text');
-            const badge = document.getElementById('booking_badge');
-            text.innerText = "OPEN";
-            text.style.color = "#059669";
-            badge.innerText = "Tanker Available";
-            badge.className = "status-badge available";
-        }
-
-        function getDynamicColor(pct) {
-            pct = Math.max(10, Math.min(100, pct));
-            let r, g, b = 0;
-            if (pct >= 50) {
-                let ratio = (pct - 50) / 50;
-                r = Math.floor(255 * (1 - ratio));
-                g = 255;
-            } else if (pct >= 25) {
-                let ratio = (pct - 25) / 25;
-                r = 255;
-                g = Math.floor(165 + (90 * ratio));
-            } else {
-                let ratio = (pct - 10) / 15;
-                r = 255;
-                g = Math.floor(165 * ratio);
-            }
-            return `rgb(${r}, ${g}, ${b})`;
+            isAnimating = false;
         }
 
         socket.on('updateDashboard', (data) => {
-            console.log("Incoming Data:", data);
+            console.log("Stream:", data);
 
-            // Update ID and Water Level (These can update constantly without issue)
+            // Update ID & Timestamp
             if (data.id) document.getElementById('id').innerText = data.id;
+            document.getElementById('last_seen').innerText = "Last Update: " + new Date().toLocaleTimeString();
+
+            // Update Water Level and Tank Visual
             if (data.w_lvl !== undefined) {
-                const el = document.getElementById('w_lvl');
-                el.innerText = data.w_lvl;
-                el.style.color = getDynamicColor(parseFloat(data.w_lvl));
+                const lvl = parseFloat(data.w_lvl);
+                document.getElementById('w_lvl').innerText = lvl;
+                document.getElementById('water_fill').style.height = lvl + "%";
             }
 
-            // BOOKING LOGIC
+            // Update Booking State
             if (data.booking !== undefined) {
-                const incomingState = parseInt(data.booking);
-
-                // Check if the state actually changed
-                if (incomingState !== currentBookingState) {
-                    console.log(`STATE CHANGE DETECTED: ${currentBookingState} -> ${incomingState}`);
-                    currentBookingState = incomingState;
-
-                    if (incomingState === 1) {
+                const newState = parseInt(data.booking);
+                if (newState !== lastState) {
+                    lastState = newState;
+                    if (newState === 1) {
                         runBookingSequence();
                     } else {
-                        resetToOpen();
+                        const text = document.getElementById('booking_text');
+                        const badge = document.getElementById('booking_badge');
+                        text.innerText = "READY";
+                        text.style.color = "var(--accent-green)";
+                        badge.innerText = "Available";
+                        badge.className = "badge available";
                     }
                 }
             }
